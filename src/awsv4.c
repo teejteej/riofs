@@ -120,6 +120,10 @@ gchar* canonicalize_query(const GURI* uri)
             tok2 = str_split(tok[_index],"=", (unsigned int*)&_numentries2, false);
             if(_numentries2 == 2)
             {
+                _str2 = g_uri_unescape_string (tok2[1], NULL);
+                g_free(tok2[1]);
+                tok2[1] = _str2;
+
                 _str2 = url_escape_strict (tok2[1]);
                 tok[_index] = g_strdup_printf("%s=%s",tok2[0], _str2);
 
