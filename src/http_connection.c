@@ -18,6 +18,7 @@
 #include "http_connection.h"
 #include "utils.h"
 #include "stat_srv.h"
+#include "awsv4.h"
 
 /*{{{ struct*/
 
@@ -217,6 +218,141 @@ struct evhttp_connection *http_connection_get_evcon (HttpConnection *con)
 /*{{{ get_auth_string */
 // create  auth string
 // http://docs.amazonwebservices.com/Amazon/2006-03-01/dev/RESTAuthentication.html
+static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
+        const gchar *method, const gchar *resource, const time_t reqtime,
+        GList *l_output_headers)
+{
+    gchar* _result;
+    unsigned int md_len, _num_entries;
+    GList *l;
+    gchar *s_headers;
+    gchar *_date_str;
+    gchar** _headers;
+
+    GURI* _uri;
+    gchar* _canonical_uri;
+    gchar* _canonical_query;
+    KeyValuePair** _canonical_headers;
+    gchar* _canonical_request;
+    gchar* _credential_scope;
+    gchar* _string_to_sign;
+    gchar* _signature;
+    gchar* _region;
+    gchar* _map_headers_string;
+    gchar* _map_signed_headers;
+    gchar* _tmp;
+    gchar* _payloadsha256;
+
+    _region = "us-east-1";
+
+    s_headers = NULL;
+    for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
+        HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
+
+        if(strcicmp(header->key, "x-amz-content-sha256") == 0)
+        {
+            _payloadsha256 = header->value;
+        }
+
+        if(s_headers == NULL)
+        {
+            s_headers = g_strdup_printf("%s:%s", header->key, header->value);
+
+        }
+        else
+        {
+            _tmp = s_headers;
+            s_headers = g_strdup_printf("%s\n%s:%s", s_headers, header->key, header->value);
+            g_free(_tmp);
+        }    
+    }
+
+
+    _headers = str_split(s_headers,"\n", &_num_entries,false);
+    
+    g_free(s_headers);
+
+    //LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (application_get_conf (con->app), "s3.secret_access_key"));
+
+    _uri =  gnet_uri_new(con->cur_url);
+
+    _date_str = utc_yyyymmdd(&reqtime);
+    
+    _canonical_uri = g_strdup(_uri->path);
+    _canonical_query = canonicalize_query(_uri);
+    _canonical_headers = canonicalize_headers(_num_entries, (const gchar**)_headers);
+
+    _map_headers_string = map_headers_string(_num_entries, (const KeyValuePair**)_canonical_headers);
+    _map_signed_headers = map_signed_headers(_num_entries, (const KeyValuePair**)_canonical_headers);
+
+    _canonical_request = canonicalize_request(
+                                    method,
+                                    _canonical_uri,
+                                    _canonical_query,
+                                    _map_headers_string,
+                                    _map_signed_headers,
+                                    _payloadsha256
+                                );
+
+    LOG_debug (CON_LOG, "Caninonical Request Send:\n%s\n", _canonical_request);
+
+    _credential_scope = credential_scope(
+                                            &reqtime,
+                                            _region,
+                                            "s3"
+                                        );
+
+
+    _tmp = sha256_base16(_canonical_request, strlen(_canonical_request));
+    _string_to_sign = string_to_sign(
+                                "AWS4-HMAC-SHA256",
+                                &reqtime,
+                                _credential_scope,
+                                _tmp
+                            );
+    g_free(_tmp);
+
+    _signature = calculate_signature
+                                    (
+                                        &reqtime, 
+                                        conf_get_string (application_get_conf (con->app), "s3.secret_access_key"),
+                                        _region,
+                                        "s3",
+                                        _string_to_sign
+                                    );
+
+    LOG_debug (CON_LOG, "StringToSign Send:\n%s\n", _string_to_sign);
+
+    _result = g_strdup_printf(
+                                "AWS4-HMAC-SHA256 Credential=%s/%s/%s/s3/aws4_request,SignedHeaders=%s,Signature=%s", 
+                                conf_get_string (application_get_conf (con->app), "s3.access_key_id"), 
+                                _date_str,
+                                _region,
+                                _map_signed_headers,
+                                _signature);
+
+
+    g_free(_canonical_uri);
+    g_free(_canonical_query);
+    g_free(_canonical_request);
+    g_free(_credential_scope);
+    g_free(_string_to_sign);
+    g_free(_signature);
+    g_free(_map_headers_string);
+    g_free(_map_signed_headers);
+
+    free_kvp_array(_canonical_headers, _num_entries);
+
+    gnet_uri_delete(_uri);
+
+    return _result;
+}
+/*}}}*/
+
+
+/*{{{ get_auth_string */
+// create  auth string
+// http://docs.amazonwebservices.com/Amazon/2006-03-01/dev/RESTAuthentication.html
 static gchar *http_connection_get_auth_string (Application *app,
         const gchar *method, const gchar *resource, const gchar *time_str,
         GList *l_output_headers)
@@ -328,6 +464,8 @@ static gchar *parse_aws_error (const char *xml, size_t xml_len) {
 
     if (!xml_len || !xml)
         return NULL;
+
+    printf("%s\n", xml);
 
     doc = xmlReadMemory (xml, xml_len, "", NULL, 0);
     if (!doc)
@@ -661,6 +799,21 @@ static void http_connection_free_headers (GList *l_headers)
     g_list_free (l_headers);
 }
 
+bool contains_header(const GList* list, const gchar* headerkey)
+{
+    GList *l;
+    for (l = g_list_first (list); l; l = g_list_next (l)) {
+        HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
+        if(strcicmp(header->key, headerkey) == 0)
+        {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+
 gboolean http_connection_make_request (HttpConnection *con,
     const gchar *resource_path,
     const gchar *http_cmd,
@@ -671,7 +824,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 {
     gchar *auth_str;
     struct evhttp_request *req;
-    gchar auth_key[300];
+    gchar *auth_key;
     time_t t;
     char time_str[50];
     RequestData *data;
@@ -679,8 +832,10 @@ gboolean http_connection_make_request (HttpConnection *con,
     enum evhttp_cmd_type cmd_type;
     gchar *request_str = NULL;
     GList *l;
+    GList* _request_headers = NULL;
     const gchar *bucket_name;
     const gchar *host;
+    HttpConnectionHeader* _header;
 
     if (!con->evcon)
         if (!http_connection_init (con)) {
@@ -765,9 +920,6 @@ gboolean http_connection_make_request (HttpConnection *con,
         return FALSE;
     }
 
-    auth_str = http_connection_get_auth_string (con->app, http_cmd, data->resource_path, time_str, data->l_output_headers);
-    snprintf (auth_key, sizeof (auth_key), "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
-    g_free (auth_str);
 
     req = evhttp_request_new (http_connection_on_response_cb, data);
     if (!req) {
@@ -778,19 +930,65 @@ gboolean http_connection_make_request (HttpConnection *con,
         return FALSE;
     }
 
-    evhttp_add_header (req->output_headers, "Authorization", auth_key);
-    evhttp_add_header (req->output_headers, "Host", conf_get_string (application_get_conf (con->app), "s3.host"));
-    evhttp_add_header (req->output_headers, "Date", time_str);
-    // ask to keep connection opened
-    evhttp_add_header (req->output_headers, "Connection", "keep-alive");
-    evhttp_add_header (req->output_headers, "Accept-Encoding", "identity");
-
     for (l = g_list_first (data->l_output_headers); l; l = g_list_next (l)) {
-        HttpConnectionHeader *header = (HttpConnectionHeader *) l->data;
-        evhttp_add_header (req->output_headers,
-            header->key, header->value
-        );
+        _request_headers = g_list_prepend(_request_headers, l->data);
     }
+
+    if(contains_header(_request_headers,"Host") == false)
+    {
+        _header = g_malloc(sizeof(HttpConnectionHeader));
+        _header->key = g_strdup("Host");
+        _header->value = conf_get_string (application_get_conf (con->app), "s3.host");
+        _request_headers = g_list_prepend(_request_headers, _header);
+    }
+
+    // ask to keep connection opened
+    if(contains_header(_request_headers,"Connection") == false)
+    {
+        _header = g_malloc(sizeof(HttpConnectionHeader));
+        _header->key = g_strdup("Connection");
+        _header->value = g_strdup("keep-alive");
+        _request_headers = g_list_prepend(_request_headers, _header);
+    }
+
+
+    if(contains_header(_request_headers,"Accept-Encoding") == false)
+    {
+        _header = g_malloc(sizeof(HttpConnectionHeader));
+        _header->key = g_strdup("Accept-Encoding");
+        _header->value = g_strdup("identity");
+        _request_headers = g_list_prepend(_request_headers, _header);
+    }
+
+
+    bool _useawsv4 = true;
+    if(_useawsv4 == true)
+    {        
+        if(contains_header(_request_headers,"x-amz-content-sha256") == false)
+        {
+            _header = g_malloc(sizeof(HttpConnectionHeader));
+            _header->key = g_strdup("x-amz-content-sha256");
+            _header->value = sha256_base16("", 0);
+            _request_headers = g_list_prepend(_request_headers, _header);
+        }
+
+        if(contains_header(_request_headers,"x-amz-date") == false)
+        {
+            _header = g_malloc(sizeof(HttpConnectionHeader));
+            _header->key = g_strdup("x-amz-date");
+            _header->value = ISO8601_date(&t);
+
+            _request_headers = g_list_prepend(_request_headers, _header);
+        }
+    }
+    else if(contains_header(_request_headers,"Accept-Encoding") == false){
+        _header = g_malloc(sizeof(HttpConnectionHeader));
+        _header->key = g_strdup("Date");
+        _header->value = time_str;
+
+        _request_headers = g_list_prepend(_request_headers, _header);
+    }
+
 
     if (out_buffer) {
         con->total_bytes_out += evbuffer_get_length (out_buffer);
@@ -817,7 +1015,29 @@ gboolean http_connection_make_request (HttpConnection *con,
     con->cur_cmd_type = cmd_type;
     if (con->cur_url)
         g_free (con->cur_url);
+
+        
     con->cur_url = g_strdup_printf ("%s%s%s", "http://", conf_get_string (application_get_conf (con->app), "s3.host"), request_str);
+
+    if(_useawsv4 == true)
+    {
+        auth_str = http_connection_get_auth_string_v4 (con, http_cmd, data->resource_path, t, _request_headers);
+        auth_key = g_strdup(auth_str);
+    }
+    else
+    {
+        auth_str = http_connection_get_auth_string (con->app, http_cmd, data->resource_path, time_str, data->l_output_headers);
+        auth_key = g_malloc(sizeof(gchar)*256);
+        snprintf (auth_key, 255, "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
+    }
+    g_free (auth_str);
+
+    evhttp_add_header (req->output_headers, "Authorization", auth_key);
+
+    for (l = g_list_first (_request_headers); l; l = g_list_next (l)) {
+        _header = (HttpConnectionHeader *) l->data;
+        evhttp_add_header (req->output_headers, _header->key, _header->value);
+    }
 
     gettimeofday (&data->start_tv, NULL);
     con->cur_time_start = time (NULL);

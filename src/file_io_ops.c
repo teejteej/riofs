@@ -46,6 +46,7 @@ struct _FileIO {
 typedef struct {
     guint part_number;
     gchar *md5str;
+    gchar *sha256;
     gchar *md5b;
 } FileIOPart;
 /*}}}*/
@@ -133,8 +134,11 @@ static void fileio_release_on_complete_cb (HttpConnection *con, void *ctx, gbool
 static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
 {
     HttpConnection *con = (HttpConnection *) client;
+    unsigned int _xml_len;
     FileIO *fop = (FileIO *) ctx;
     gchar *path;
+    gchar *_tmp;
+    gchar *_sha256;
     gboolean res;
     struct evbuffer *xml_buf;
     GList *l;
@@ -152,6 +156,17 @@ static void fileio_release_on_complete_con_cb (gpointer client, gpointer ctx)
     LOG_debug (FIO_LOG, INO_CON_H"Sending Multipart Final part..", INO_T (fop->ino), (void *)con);
 
     http_connection_acquire (con);
+
+    _xml_len = evbuffer_get_length (xml_buf);
+    _tmp = g_new0 (gchar, _xml_len);    
+
+    evbuffer_copyout (xml_buf, _tmp, _xml_len);
+    _sha256 = sha256_base16(_tmp, _xml_len);
+
+    http_connection_add_output_header (con, "x-amz-content-sha256", _sha256);
+
+    g_free(_sha256);
+    g_free(_tmp);
 
     path = g_strdup_printf ("%s?uploadId=%s",
         fop->fname, fop->uploadid);
@@ -237,6 +252,8 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
     // XXX: move to separate thread
     // 1. calculate MD5 of a part.
     get_md5_sum (buf, buf_len, &part->md5str, &part->md5b);
+    part->sha256 = sha256_base16(buf, buf_len); 
+
     // 2. calculate MD5 of multiple message blocks
     MD5_Update (&fop->md5, buf, buf_len);
 
@@ -274,6 +291,8 @@ static void fileio_release_on_part_con_cb (gpointer client, gpointer ctx)
 
     // add output headers
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
+    http_connection_add_output_header (con, "x-amz-content-sha256", part->sha256);
+
     if (fop->content_type)
         http_connection_add_output_header (con, "Content-Type", fop->content_type);
 
@@ -391,6 +410,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
     // XXX: move to separate thread
     // 1. calculate MD5 of a part.
     get_md5_sum (buf, buf_len, &part->md5str, &part->md5b);
+    part->sha256 = sha256_base16(buf, buf_len); 
     // 2. calculate MD5 of multiple message blocks
     MD5_Update (&wdata->fop->md5, buf, buf_len);
 
@@ -405,6 +425,7 @@ static void fileio_write_on_send_con_cb (gpointer client, gpointer ctx)
 
     // add output headers
     http_connection_add_output_header (con, "Content-MD5", part->md5b);
+    http_connection_add_output_header (con, "x-amz-content-sha256", part->sha256);
 
     res = http_connection_make_request (con,
         path, "PUT", wdata->fop->write_buf, TRUE, NULL,
@@ -974,6 +995,10 @@ static void fileio_simple_upload_on_con_cb (gpointer client, gpointer ctx)
     char time_str[50];
     gboolean res;
 
+    gchar* _tmp;
+    gchar* _sha256;
+    unsigned int _len;
+
     LOG_debug (FIO_LOG, CON_H"Uploading data. Size: %zu", (void *)con, evbuffer_get_length (fsim->write_buf));
 
     http_connection_acquire (con);
@@ -987,6 +1012,18 @@ static void fileio_simple_upload_on_con_cb (gpointer client, gpointer ctx)
     if (strftime (time_str, sizeof (time_str), "%a, %d %b %Y %H:%M:%S GMT", gmtime(&t))) {
         http_connection_add_output_header (con, "x-amz-meta-date", time_str);
     }
+
+
+    _len = evbuffer_get_length (fsim->write_buf);
+    _tmp = g_new0 (gchar, _len);    
+
+    evbuffer_copyout (fsim->write_buf, _tmp, _len);
+    _sha256 = sha256_base16(_tmp, _len);
+
+    http_connection_add_output_header (con, "x-amz-content-sha256", _sha256);
+
+    g_free(_sha256);
+    g_free(_tmp);
 
     res = http_connection_make_request (con,
         fsim->fname, "PUT", fsim->write_buf, TRUE, NULL,
