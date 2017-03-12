@@ -508,7 +508,7 @@ static void application_on_bucket_location_cb (gpointer ctx, gboolean success,
     xmlDocPtr doc;
     xmlXPathContextPtr xmlctx;
     xmlXPathObjectPtr msg_xp;
-    xmlNodeSetPtr nodes;
+    xmlNodePtr _node;
     gchar *msg;
     Application *app = (Application *)ctx;
     
@@ -530,17 +530,23 @@ static void application_on_bucket_location_cb (gpointer ctx, gboolean success,
     }
 
     xmlctx = xmlXPathNewContext (doc);
-    msg_xp = xmlXPathEvalExpression ((xmlChar *) "/LocationConstraint", xmlctx);
+	for(_node = doc->children; _node != NULL; _node = _node->next)
+	{
+        if(strcicmp(_node->name, "LocationConstraint") == 0)
+		{
+            if(_node->children != NULL && _node->children->content !=NULL)
+            {
+                conf_set_string (app->conf, "s3.region", g_strdup(_node->children->content));
+            }
+            break;
+        }
+	}    
 
-    if(msg_xp != NULL && msg_xp->stringval !=NULL)
-    {
-        conf_set_string (app->conf, "s3.region", msg_xp->stringval);        
-    }
 
-
-    xmlXPathFreeObject (msg_xp);
     xmlXPathFreeContext (xmlctx);
     xmlFreeDoc (doc);
+
+    g_free(msg);
 
     bucket_client_get (app->service_con, "/?acl", application_on_bucket_acl_cb, app);
 }
