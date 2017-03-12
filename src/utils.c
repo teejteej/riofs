@@ -17,13 +17,12 @@
  */
 #include "utils.h"
 
-int strarraycompare(const void* a, const void* b)
-{
-    return strcmp(*(const char **)a, *(const char **)b);
-}
-
 int strcicmp(char const *a, char const *b)
 {
+    if(a==NULL && b != NULL) return 1;
+    if(a!=NULL && b == NULL) return -1;
+    if(a==NULL && b == NULL) return 0;
+
     for (;; a++, b++) {
         int d = tolower(*a) - tolower(*b);
         if (d != 0 || !*a)

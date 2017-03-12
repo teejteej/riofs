@@ -3,20 +3,19 @@
 
 /* Converts a hex character to its integer value */
 char from_hex(char ch) {
-  return isdigit(ch) ? ch - '0' : tolower(ch) - 'a' + 10;
+  return isdigit(ch) ? ch - '0' : tolower(ch) - 'A' + 10;
 }
 
 /* Converts an integer value to its hex character*/
 char to_hex(char code) {
-  static char hex[] = "0123456789abcdef";
+  static char hex[] = "0123456789ABCDEF";
   return hex[code & 15];
 }
 
 /* Returns a url-encoded version of str */
 /* IMPORTANT: be sure to free() the returned string after use */
 
-/*
-gchar *url_encode(gchar *str) {
+gchar *url_encode(gchar *str, bool encode_slash) {
   if(str == NULL)
   {
     return NULL;
@@ -24,10 +23,8 @@ gchar *url_encode(gchar *str) {
   
   gchar *pstr = str, *buf = malloc(strlen(str) * 3 + 1), *pbuf = buf;
   while (*pstr) {
-    if (isalnum(*pstr) || canonicalize_uri == '/' || *pstr == '-' || *pstr == '_' || *pstr == '.' || *pstr == '~') 
+    if (isalnum(*pstr) || (encode_slash == false && *pstr == '/') || *pstr == '-' || *pstr == '_' || *pstr == '.' || *pstr == '~') 
       *pbuf++ = *pstr;
-//    else if (*pstr == ' ') 
-//      *pbuf++ = '+';
     else 
       *pbuf++ = '%', *pbuf++ = to_hex(*pstr >> 4), *pbuf++ = to_hex(*pstr & 15);
     pstr++;
@@ -38,7 +35,6 @@ gchar *url_encode(gchar *str) {
 
 /* Returns a url-decoded version of str */
 /* IMPORTANT: be sure to free() the returned string after use */
-/*
 gchar *url_decode(gchar *str) {
   if(str == NULL)
   {
@@ -62,4 +58,3 @@ gchar *url_decode(gchar *str) {
   *pbuf = '\0';
   return buf;
 }
-*/

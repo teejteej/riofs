@@ -5,6 +5,7 @@ endif
 EXTRA_DIST = test.conf.xml
 
 client_pool_test_SOURCES = $(top_srcdir)/src/client_pool.c
+client_pool_test_SOURCES = $(top_srcdir)/src/urltools.c
 client_pool_test_SOURCES += $(top_srcdir)/src/log.c
 client_pool_test_SOURCES += $(abs_srcdir)/test_application.c
 client_pool_test_SOURCES += $(top_srcdir)/src/utils.c

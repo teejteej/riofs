@@ -21,7 +21,6 @@
 #include "global.h"
 
 gchar** str_split(const gchar* a_str, const gchar* a_delim, unsigned int* num_entries, bool stoponfirst);
-
 int strcicmp(char const *a, char const *b);
 
 gchar* HexEncode(unsigned char* array, unsigned int arraylen);

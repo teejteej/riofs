@@ -35,6 +35,9 @@
     <!-- part size for upload / download files (5mb is the minimal value) -->
     <part_size type="uint">5242880</part_size>
     
+    <!-- Should we use the old authenticiation method? -->
+    <use_awsv2 type="boolean">False</use_awsv2>
+    
     <!-- compatibility with s3fs: send HEAD request to S3 if file size is 0 to check if it's a directory 
          Greatly increases directory access time. Consider to disable this option. -->
     <check_empty_files type="boolean">True</check_empty_files>

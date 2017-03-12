@@ -10,6 +10,7 @@ class Riofs < Formula
   depends_on 'pkg-config' => :build
   depends_on 'glib'
   depends_on 'libevent'
+  depends_on 'gnet'
   depends_on :osxfuse
   depends_on 'libmagic' => :recommended
   depends_on 'openssl' => :recommended

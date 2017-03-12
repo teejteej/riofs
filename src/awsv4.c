@@ -14,6 +14,11 @@ int kvparraycompare(const void* a, const void* b)
 {
     return strcmp((*(const KeyValuePair **)a)->key, (*(const KeyValuePair **)b)->key);
 }
+
+int strarraycompare(const void* a, const void* b)
+{
+    return strcmp(*(const char **)a, *(const char **)b);
+}
     
     // http://stackoverflow.com/questions/2262386/generate-sha256-with-openssl-and-c
 void sha256(const char *str, unsigned int length, unsigned char outputBuffer[SHA256_DIGEST_LENGTH]) 
@@ -68,20 +73,12 @@ gchar *canonicalize_uri(const GURI* uri)
     _path = uri->path;
     if (_path == NULL || strlen(_path) == 0) return g_strdup("/");
 
-    _tmp = gnet_uri_clone(uri);
-    gnet_uri_escape(_tmp);
-
-    _result = g_strdup(_tmp->path);
-    gnet_uri_delete(_tmp);
-
-
-    return _result;
+    return url_encode(uri->path, false);
 }
 
 gchar* canonicalize_query(const GURI* uri)
 {
     const char* query_delim = "&";
-    char* _encoded_querydelim;
     unsigned int _numentries, _numentries2;
     unsigned int _index;
     gchar* _query;
@@ -94,22 +91,10 @@ gchar* canonicalize_query(const GURI* uri)
 
     if (uri == NULL) return NULL;
 
-    _encoded_querydelim = "&"; //amp;
-
-    _tmp = gnet_uri_clone(uri);
-    gnet_uri_escape(_tmp);
-
-    _query = g_strdup(_tmp->query);        
-    gnet_uri_delete(_tmp);
-
-    if (_query == NULL || strlen(_query) == 0)
-    {
-        g_free(_query);
-        return (gchar*)calloc(1, sizeof(gchar));;
-    } 
+    _query = uri->query;    
+    if (_query == NULL || strlen(_query) == 0) { return g_strdup("");  } 
 
     tok = str_split(_query, query_delim, (unsigned int*)&_numentries, false);
-    g_free(_query);
 
     if (tok[0] != NULL)
     {        
@@ -120,11 +105,11 @@ gchar* canonicalize_query(const GURI* uri)
             tok2 = str_split(tok[_index],"=", (unsigned int*)&_numentries2, false);
             if(_numentries2 == 2)
             {
-                _str2 = g_uri_unescape_string (tok2[1], NULL);
+                _str2 = url_decode(tok2[1]);
                 g_free(tok2[1]);
                 tok2[1] = _str2;
 
-                _str2 = url_escape_strict (tok2[1]);
+                _str2 = url_encode(tok2[1], true); //, (strcicmp(tok2[0], "prefix") != 0)
                 tok[_index] = g_strdup_printf("%s=%s",tok2[0], _str2);
 
                 g_free(_str2);
@@ -142,7 +127,7 @@ gchar* canonicalize_query(const GURI* uri)
 
         qsort(tok, _numentries, sizeof(gchar*), strarraycompare);
         
-        _result = g_strjoinv(_encoded_querydelim, tok);
+        _result = g_strjoinv(query_delim, tok);
 
         for(_index = 0; _index< _numentries; _index++){ g_free(tok[_index]); }
         free(tok);

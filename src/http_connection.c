@@ -243,7 +243,7 @@ static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
     gchar* _tmp;
     gchar* _payloadsha256;
 
-    _region = "us-east-1";
+    _region = conf_get_string (application_get_conf (con->app), "s3.region");
 
     s_headers = NULL;
     for (l = g_list_first (l_output_headers); l; l = g_list_next (l)) {
@@ -845,6 +845,8 @@ gboolean http_connection_make_request (HttpConnection *con,
             return FALSE;
         }
 
+    bool _useawsv4 = conf_get_boolean (application_get_conf (con->app), "s3.use_awsv4");
+
     // if this is the first request
     if (!parent_request_data) {
 
@@ -961,7 +963,6 @@ gboolean http_connection_make_request (HttpConnection *con,
     }
 
 
-    bool _useawsv4 = true;
     if(_useawsv4 == true)
     {        
         if(contains_header(_request_headers,"x-amz-content-sha256") == false)

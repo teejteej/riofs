@@ -1,6 +1,141 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include "utils.h"
+#include "urltools.h"
 #include "awsv4.h"
+
+bool strcicmp_verify()
+{
+    gchar* _a;
+    gchar* _b;
+
+    // first case - try simple...
+    _a = g_strdup("Hi There");
+    _b = g_strdup("hi there");
+
+    if(strcicmp(_a, _b) != 0)
+    {
+        return false;
+    }
+
+    // first case - try simple...
+    _a = g_strdup("Hi There");
+    _b = g_strdup("Hi There");
+
+    if(strcicmp(_a, _b) != 0)
+    {
+        return false;
+    }
+
+    // try simple...
+    _a = g_strdup("Hi There");
+    _b = g_strdup("Not same");
+
+    if(strcicmp(_a, _b) == 0)
+    {
+        return false;
+    }
+
+    // try empty...
+    _a = g_strdup("");
+    _b = g_strdup("");
+
+    if(strcicmp(_a, _b) != 0)
+    {
+        return false;
+    }
+
+    _a = g_strdup("");
+    _b = g_strdup(" ");
+
+    if(strcicmp(_a, _b) == 0)
+    {
+        return false;
+    }
+
+    // try null...
+    _a = NULL;
+    _b = g_strdup(" ");
+
+    if(strcicmp(_a, _b) != 1)
+    {
+        return false;
+    }
+
+    _b = NULL;
+    _a = g_strdup(" ");
+
+    if(strcicmp(_a, _b) != -1)
+    {
+        return false;
+    }
+    
+    _b = NULL;
+    _a = NULL;
+
+    if(strcicmp(_a, _b) != 0)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+
+bool url_encode_verify()
+{
+    gchar* _input;
+    gchar* _expected;
+    gchar* _actual;
+    int i;
+
+    // first case - try simple...
+    _input = g_strdup("Hi there/");
+    _expected = g_strdup("Hi%20there%2F");
+    
+    _actual = url_encode(_input, true);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+    // first case - try simple...
+    _input = g_strdup("Hi there/");
+    _expected = g_strdup("Hi%20there/");
+    
+    _actual = url_encode(_input, false);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+    // first case - try empty...
+    _input = g_strdup("");
+    _expected = g_strdup("");
+    
+    _actual = url_encode(_input, false);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+
+    // try null...
+    _input = NULL;
+    _expected = NULL;
+    
+    _actual = url_encode(NULL, false);
+
+    if(_actual != NULL)
+    {
+        return false;
+    }
+
+    return true;
+}
 
 bool HexEncode_verify()
 {
@@ -39,6 +174,61 @@ bool HexEncode_verify()
     _expected = NULL;
     
     _actual = HexEncode(NULL, 0);
+
+    if(_actual != NULL)
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool url_decode_verify()
+{
+    gchar* _input;
+    gchar* _expected;
+    gchar* _actual;
+    int i;
+
+    // first case - try simple...
+    _expected = g_strdup("Hi there/");
+    _input = g_strdup("Hi%20there%2F");
+    
+    _actual = url_decode(_input);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+    // first case - try simple...
+    _expected = g_strdup("Hi there/");
+    _input = g_strdup("Hi%20there/");
+    
+    _actual = url_decode(_input);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+    // first case - try empty...
+    _input = g_strdup("");
+    _expected = g_strdup("");
+    
+    _actual = url_decode(_input);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+
+    // try null...
+    _input = NULL;
+    _expected = NULL;
+    
+    _actual = url_decode(NULL);
 
     if(_actual != NULL)
     {
@@ -344,6 +534,38 @@ bool canonicalize_query_verify()
         return false;
     }
 
+    // check with a mixed (semi-encoded uri)
+    _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?lastparam=%2F test");
+
+    _expected = g_strdup("lastparam=%2F%20test");
+    _actual = canonicalize_query(_uri);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+    // according to AWS spec - do not encode slash in the object key name
+/*
+    _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?prefix=/ test");
+
+    _expected = g_strdup("prefix=/%20test");
+    _actual = canonicalize_query(_uri);
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+*/
+    // try empty
+    _uri = gnet_uri_new("http://testproject.com");
+    _expected = g_strdup("");
+    _actual = canonicalize_query(_uri);
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }   
+
     // check if we add = at the end
     _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?lastparam");
 
@@ -625,16 +847,6 @@ bool canonicalize_request_verify()
                                 );
     if(_actual != NULL) return false;
 
-    _actual = canonicalize_request(
-                                    _http_request_method,
-                                    _canonical_uri,
-                                    _canonical_query,
-                                    map_headers_string(_headers_count, _canonical_headers),
-                                    map_signed_headers(_headers_count, _canonical_headers),
-                                    NULL
-                                );
-    if(_actual != NULL) return false;
-
     return true;
 }
 
@@ -802,6 +1014,36 @@ bool calculate_signature_verify()
 
 int main(int argc, char *argv[]) 
 {
+    if(url_encode_verify() == false)
+    {
+        printf("%s\n","url_encode failed!");
+    }
+    else
+    {
+        printf("%s\n","url_encode - success!");
+
+    }
+
+    if(url_decode_verify() == false)
+    {
+        printf("%s\n","url_decode failed!");
+    }
+    else
+    {
+        printf("%s\n","url_decode - success!");
+
+    }
+
+    if(strcicmp_verify() == false)
+    {
+        printf("%s\n","strcicmp failed!");
+    }
+    else
+    {
+        printf("%s\n","strcicmp - success!");
+
+    }
+
     if(HexEncode_verify() == false)
     {
         printf("%s\n","HexEncode failed!");
@@ -919,7 +1161,6 @@ int main(int argc, char *argv[])
     else
     {
         printf("%s\n","canonicalize_request_verify - success!");
-
     }
 
     if(credential_scope_verify() == false)

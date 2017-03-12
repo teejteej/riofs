@@ -3,19 +3,7 @@
 
 #include "global.h"
 
-// --------------------------
-// Encodes a url.
-// 
-// Need to g_free result 
-// --------------------------
-
-//gchar *url_decode(gchar *str);
-
-// --------------------------
-// Decodes a url.
-// 
-// Need to g_free result 
-// --------------------------
-//gchar *url_encode(gchar *str);
+gchar *url_decode(gchar *str);
+gchar *url_encode(gchar *str, bool encode_slash);
 
 #endif
