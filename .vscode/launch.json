@@ -29,7 +29,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/src/riofs",
-            "args": ["--config=/etc/test-riofs.conf.xml", "-f", "schloni-sysbackup","/backup"],
+            "args": ["--config=/etc/test-riofs.conf.xml", "-f", "eu-region-test","/backup"],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
             "environment": [],
