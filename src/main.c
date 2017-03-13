@@ -752,11 +752,10 @@ int main (int argc, char *argv[])
         g_fprintf (stdout, "AWS V4 Integration: Andreas Nickel <andreas(AT)familie-nickel.ch\n");
         g_fprintf (stdout, "\n");
         g_fprintf (stdout, "Libraries:\n");
-        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d GNet: %d.%d ",
+        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d ",
                 GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,
                 LIBEVENT_VERSION,
-                FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION,
-                GNET_MAJOR_VERSION, GNET_MINOR_VERSION
+                FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
         );
 #if defined(__APPLE__) || defined(__FreeBSD__) || !defined(__GLIBC__)
         g_fprintf (stdout, "\n");

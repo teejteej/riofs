@@ -229,7 +229,7 @@ static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
     gchar *_date_str;
     gchar** _headers;
 
-    GURI* _uri;
+    struct evhttp_uri* _uri;
     gchar* _canonical_uri;
     gchar* _canonical_query;
     KeyValuePair** _canonical_headers;
@@ -274,11 +274,11 @@ static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
 
     //LOG_debug (CON_LOG, "%s %s", string_to_sign, conf_get_string (application_get_conf (con->app), "s3.secret_access_key"));
 
-    _uri =  gnet_uri_new(con->cur_url);
+    _uri =  evhttp_uri_parse_with_flags(con->cur_url, EVHTTP_URI_NONCONFORMANT);
 
     _date_str = utc_yyyymmdd(&reqtime);
     
-    _canonical_uri = g_strdup(_uri->path);
+    _canonical_uri = canonicalize_uri(_uri);
     _canonical_query = canonicalize_query(_uri);
     _canonical_headers = canonicalize_headers(_num_entries, (const gchar**)_headers);
 
@@ -343,7 +343,7 @@ static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
 
     free_kvp_array(_canonical_headers, _num_entries);
 
-    gnet_uri_delete(_uri);
+    evhttp_uri_free(_uri);
 
     return _result;
 }
@@ -932,6 +932,7 @@ gboolean http_connection_make_request (HttpConnection *con,
         return FALSE;
     }
 
+    // introduced _request_headers as a temporary structure so that AWSV4 can manipulate headers...
     for (l = g_list_first (data->l_output_headers); l; l = g_list_next (l)) {
         _request_headers = g_list_prepend(_request_headers, l->data);
     }
@@ -965,6 +966,7 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     if(_useawsv4 == true)
     {        
+        // this header may have been added before, however, if it's not there lets add it with an empty payload...
         if(contains_header(_request_headers,"x-amz-content-sha256") == false)
         {
             _header = g_malloc(sizeof(HttpConnectionHeader));
@@ -973,6 +975,7 @@ gboolean http_connection_make_request (HttpConnection *con,
             _request_headers = g_list_prepend(_request_headers, _header);
         }
 
+        // required header...
         if(contains_header(_request_headers,"x-amz-date") == false)
         {
             _header = g_malloc(sizeof(HttpConnectionHeader));
@@ -981,13 +984,6 @@ gboolean http_connection_make_request (HttpConnection *con,
 
             _request_headers = g_list_prepend(_request_headers, _header);
         }
-    }
-    else if(contains_header(_request_headers,"Accept-Encoding") == false){
-        _header = g_malloc(sizeof(HttpConnectionHeader));
-        _header->key = g_strdup("Date");
-        _header->value = time_str;
-
-        _request_headers = g_list_prepend(_request_headers, _header);
     }
 
 

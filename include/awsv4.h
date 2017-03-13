@@ -1,7 +1,6 @@
 #ifndef AWSV4_H
 #define AWSV4_H
 
-#include <gnet.h>
 #include "global.h"
 
 extern const gchar ENDL[];
@@ -21,8 +20,8 @@ gchar* sha256_base16(const char *str, unsigned length);
 gchar *map_headers_string(const unsigned int len, const KeyValuePair **header_key2val);
 gchar* map_signed_headers(const unsigned int len, const KeyValuePair **header_key2val);
 
-gchar* canonicalize_uri(const GURI* uri);
-gchar* canonicalize_query(const GURI* uri);
+gchar* canonicalize_uri(const struct evhttp_uri* uri);
+gchar* canonicalize_query(const struct evhttp_uri* uri);
 KeyValuePair **canonicalize_headers(const unsigned  num_headers, const char** headers);
 gchar *canonicalize_request(
                                 const gchar *http_request_method,

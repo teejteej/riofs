@@ -37,7 +37,7 @@ AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 AC_TYPE_PID_T
 
-PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libxml-2.0 >= 2.6 libcrypto >= 0.9 gnet-2.0 > 2.0.0 ])
+PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libxml-2.0 >= 2.6 libcrypto >= 0.9 ])
 
 AC_ARG_WITH(libevent,
     AS_HELP_STRING(--with-libevent=PATH, base of libevent2 installation),

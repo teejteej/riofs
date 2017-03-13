@@ -21,8 +21,6 @@
 #include "global.h"
 #include "client_pool.h"
 
-#include <gnet.h>
-
 typedef enum {
     RT_list = 0,
 } RequestType;

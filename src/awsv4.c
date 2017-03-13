@@ -2,6 +2,7 @@
 #include "urltools.h"
 #include "utils.h"
 #include <glib-2.0/glib/gbookmarkfile.h>
+#include <event2/http.h>
 
 
 const gchar ENDL[] = "\n";
@@ -62,21 +63,34 @@ gchar* sha256_base16(const char* str, unsigned int length)
 // uri should be normalize()'d before calling here, as this takes a const ref param and we don't 
 // want to normalize repeatedly. the return value is not a uri specifically, but a uri fragment,
 // as such the return value should not be used to initialize a uri object
-gchar *canonicalize_uri(const GURI* uri) 
+gchar *canonicalize_uri(const struct evhttp_uri* uri) 
 {
     gchar* _result;
+    gchar* _tmp;
     char* _path;
-    GURI* _tmp;
 
     if(uri == NULL) return NULL;
 
-    _path = uri->path;
-    if (_path == NULL || strlen(_path) == 0) return g_strdup("/");
-
-    return url_encode(uri->path, false);
+    _path = evhttp_uri_get_path(uri);
+    if(_path == NULL || strlen(_path)==0)
+    {
+        _result = g_strdup("/");
+    }
+    else
+    {
+        // as the path could be partially encode, we need to decode first,
+        // then re-encode but just not the slash (as AWS spec)
+        _result = url_decode(_path);
+        _tmp = _result;
+        
+        _result = url_encode(_tmp, false);
+        g_free(_tmp);
+    }
+    
+    return _result;
 }
 
-gchar* canonicalize_query(const GURI* uri)
+gchar* canonicalize_query(const struct evhttp_uri* uri)
 {
     const char* query_delim = "&";
     unsigned int _numentries, _numentries2;
@@ -87,11 +101,10 @@ gchar* canonicalize_query(const GURI* uri)
     gchar* _result;
     gchar** tok;
     gchar** tok2;
-    GURI* _tmp;
 
     if (uri == NULL) return NULL;
 
-    _query = uri->query;    
+    _query = evhttp_uri_get_query(uri);    
     if (_query == NULL || strlen(_query) == 0) { return g_strdup("");  } 
 
     tok = str_split(_query, query_delim, (unsigned int*)&_numentries, false);
@@ -136,7 +149,7 @@ gchar* canonicalize_query(const GURI* uri)
     {
         _result = (gchar*)calloc(1, sizeof(gchar));
     }
-
+    
     return _result;
 }
 
@@ -342,12 +355,11 @@ gchar *credential_scope(
 gchar* ISO8601_date(const time_t *t) 
 {
     gchar* buf;
-    int len;
+    int len = 18;
     
     if(t == NULL) return NULL;
 
-    len = strlen("20111008T070709Z")+2;
-    buf = g_malloc(len);
+    buf = g_malloc0(sizeof(char)*len);
     
     strftime(buf, len, "%Y%m%dT%H%M%SZ", gmtime(t));
     return buf;
@@ -362,8 +374,8 @@ gchar *utc_yyyymmdd(const time_t  *t)
 
     if(t == NULL)return NULL;
 
-    len = 9;// strlen("20111008")+1;
-    buf = g_malloc(len * sizeof(gchar));
+    len = 9;
+    buf = g_malloc0(len * sizeof(gchar));
             
     strftime(buf, len, "%Y%m%d", gmtime(t));
     return buf;

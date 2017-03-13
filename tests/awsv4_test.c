@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "urltools.h"
 #include "awsv4.h"
+#include <event2/http.h>
 
 bool strcicmp_verify()
 {
@@ -81,6 +82,51 @@ bool strcicmp_verify()
     return true;
 }
 
+bool HexEncode_verify()
+{
+    gchar* _input;
+    gchar* _expected;
+    gchar* _actual;
+    int i;
+    unsigned char _result[SHA256_DIGEST_LENGTH];
+
+    // first case - try simple...
+    _input = g_strdup("Hi there!");
+    _expected = g_strdup("486920746865726521");
+    
+    _actual = HexEncode(_input, strlen(_input));
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+
+    // first case - try empty...
+    _input = g_strdup( "");
+    _expected = g_strdup("");
+    
+    _actual = HexEncode(_input, strlen(_input));
+
+    if(strcmp(_actual, _expected) != 0)
+    {
+        return false;
+    }
+
+
+    // try null...
+    _input = NULL;
+    _expected = NULL;
+    
+    _actual = HexEncode(NULL, 0);
+
+    if(_actual != NULL)
+    {
+        return false;
+    }
+
+    return true;
+}
 
 bool url_encode_verify()
 {
@@ -128,52 +174,6 @@ bool url_encode_verify()
     _expected = NULL;
     
     _actual = url_encode(NULL, false);
-
-    if(_actual != NULL)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool HexEncode_verify()
-{
-    gchar* _input;
-    gchar* _expected;
-    gchar* _actual;
-    int i;
-    unsigned char _result[SHA256_DIGEST_LENGTH];
-
-    // first case - try simple...
-    _input = g_strdup("Hi there!");
-    _expected = g_strdup("486920746865726521");
-    
-    _actual = HexEncode(_input, strlen(_input));
-
-    if(strcmp(_actual, _expected) != 0)
-    {
-        return false;
-    }
-
-
-    // first case - try empty...
-    _input = g_strdup( "");
-    _expected = g_strdup("");
-    
-    _actual = HexEncode(_input, strlen(_input));
-
-    if(strcmp(_actual, _expected) != 0)
-    {
-        return false;
-    }
-
-
-    // try null...
-    _input = NULL;
-    _expected = NULL;
-    
-    _actual = HexEncode(NULL, 0);
 
     if(_actual != NULL)
     {
@@ -485,9 +485,9 @@ bool canonicalize_uri_verify()
     gchar* _expected = NULL;
     gchar* _actual = NULL;
 
-    GURI* _uri;
+    struct evhttp_uri* _uri;
 
-    _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?firstparam=6 and 8&secondparam=8");
+    _uri = evhttp_uri_parse_with_flags("http://testproject.com/testpath/somepage with spaces.php?firstparam=6 and 8&secondparam=8", EVHTTP_URI_NONCONFORMANT);
 
     _expected = g_strdup("/testpath/somepage%20with%20spaces.php");
     _actual = canonicalize_uri(_uri);
@@ -498,7 +498,7 @@ bool canonicalize_uri_verify()
     }
 
     // try empty
-    _uri = gnet_uri_new("http://testproject.com");
+    _uri =  evhttp_uri_parse_with_flags("http://testproject.com", EVHTTP_URI_NONCONFORMANT);
     _expected = g_strdup("/");
     _actual = canonicalize_uri(_uri);
     if(strcmp(_actual, _expected) != 0)
@@ -522,9 +522,9 @@ bool canonicalize_query_verify()
     gchar* _expected = NULL;
     gchar* _actual = NULL;
 
-    GURI* _uri;
+    struct evhttp_uri* _uri;
 
-    _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?lastparam=6 and 8&firstparam=8");
+    _uri =  evhttp_uri_parse_with_flags("http://testproject.com/testpath/somepage with spaces.php?lastparam=6 and 8&firstparam=8", EVHTTP_URI_NONCONFORMANT);
 
     _expected = g_strdup("firstparam=8&lastparam=6%20and%208");
     _actual = canonicalize_query(_uri);
@@ -535,7 +535,7 @@ bool canonicalize_query_verify()
     }
 
     // check with a mixed (semi-encoded uri)
-    _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?lastparam=%2F test");
+    _uri =  evhttp_uri_parse_with_flags("http://testproject.com/testpath/somepage with spaces.php?lastparam=%2F test", EVHTTP_URI_NONCONFORMANT);
 
     _expected = g_strdup("lastparam=%2F%20test");
     _actual = canonicalize_query(_uri);
@@ -558,7 +558,7 @@ bool canonicalize_query_verify()
     }
 */
     // try empty
-    _uri = gnet_uri_new("http://testproject.com");
+    _uri =  evhttp_uri_parse_with_flags("http://testproject.com", EVHTTP_URI_NONCONFORMANT);
     _expected = g_strdup("");
     _actual = canonicalize_query(_uri);
     if(strcmp(_actual, _expected) != 0)
@@ -567,7 +567,7 @@ bool canonicalize_query_verify()
     }   
 
     // check if we add = at the end
-    _uri = gnet_uri_new("http://testproject.com/testpath/somepage with spaces.php?lastparam");
+    _uri =  evhttp_uri_parse_with_flags("http://testproject.com/testpath/somepage with spaces.php?lastparam", EVHTTP_URI_NONCONFORMANT);
 
     _expected = g_strdup("lastparam=");
     _actual = canonicalize_query(_uri);
@@ -577,7 +577,7 @@ bool canonicalize_query_verify()
         return false;
     }
     // try empty
-    _uri = gnet_uri_new("http://testproject.com");
+    _uri =  evhttp_uri_parse_with_flags("http://testproject.com", EVHTTP_URI_NONCONFORMANT);
     _expected = g_strdup("");
     _actual = canonicalize_query(_uri);
     if(strcmp(_actual, _expected) != 0)
@@ -759,7 +759,7 @@ bool canonicalize_request_verify()
     gchar* _canonical_query;
     unsigned int _headers_count = 2;
 
-    GURI* _uri;
+    struct evhttp_uri* _uri;
     KeyValuePair** _canonical_headers;
 
     _headers_string = g_malloc((_headers_count+1)*sizeof(gchar*));
@@ -767,7 +767,7 @@ bool canonicalize_request_verify()
     _headers_string[1] = g_strdup("host: iam.amazonaws.com");
     _headers_string[_headers_count] = NULL;
 
-    _uri = gnet_uri_new(_url);
+    _uri = evhttp_uri_parse_with_flags(_url,EVHTTP_URI_NONCONFORMANT);
     _canonical_uri = canonicalize_uri(_uri);
     _canonical_query = canonicalize_query(_uri);
     _canonical_headers = canonicalize_headers(_headers_count, _headers_string);
@@ -905,7 +905,7 @@ bool string_to_sign_verify()
     unsigned int _headers_count = 4;
     struct tm _t; 
 
-    GURI* _uri;
+    struct evhttp_uri* _uri;
     KeyValuePair** _canonical_headers;
 
     _headers_string = g_malloc((_headers_count+1)*sizeof(gchar*));
@@ -915,7 +915,7 @@ bool string_to_sign_verify()
     _headers_string[3] = g_strdup("x-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     _headers_string[_headers_count] = NULL;
 
-    _uri = gnet_uri_new(_url);
+    _uri = evhttp_uri_parse_with_flags(_url,EVHTTP_URI_NONCONFORMANT);
     _canonical_uri = canonicalize_uri(_uri);
     _canonical_query = canonicalize_query(_uri);
     _canonical_headers = canonicalize_headers(_headers_count, _headers_string);
@@ -955,7 +955,7 @@ bool string_to_sign_verify()
                             );
 
     _expected = "AWS4-HMAC-SHA256\n20130524T000000Z\n20130524/us-east-1/s3/aws4_request\n7344ae5b7ee6c3e7e6b0fe0640412a37625d1fbfff95c48bbb2dc43964946972";
-
+              // AWS4-HMAC-SHA256\n\n20130524/us-east-1/s3/aws4_request\n7344ae5b7ee6c3e7e6b0fe0640412a37625d1fbfff95c48bbb2dc43964946972
     if(strcmp(_actual, _expected) != 0)
     {
         return false;
@@ -1014,6 +1014,8 @@ bool calculate_signature_verify()
 
 int main(int argc, char *argv[]) 
 {
+
+
     if(url_encode_verify() == false)
     {
         printf("%s\n","url_encode failed!");
@@ -1209,7 +1211,7 @@ int main(int argc, char *argv[])
                         };
 
     time_t request_date = timegm(&t);
-    GURI* _uri;
+    struct evhttp_uri* _uri;
 
     t.tm_sec = 0;
     t.tm_min = 36;
@@ -1219,7 +1221,7 @@ int main(int argc, char *argv[])
     t.tm_isdst = -1; 
     t.tm_mday = 9;   
 
-    _uri = gnet_uri_new("http://iam.amazonaws.com/");
+    _uri = evhttp_uri_parse_with_flags("http://iam.amazonaws.com/",EVHTTP_URI_NONCONFORMANT);
 
     gchar* canonical_uri = canonicalize_uri(_uri);    
     gchar* canonical_query = canonicalize_query(_uri);
