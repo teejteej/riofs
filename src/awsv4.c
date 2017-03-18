@@ -43,6 +43,7 @@ void sha256(const char *str, unsigned int length, unsigned char outputBuffer[SHA
 gchar* sha256_base16(const char* str, unsigned int length) 
 { 
     unsigned char *hashOut; 
+    gchar* _result;
     char* _buffer;
 
     hashOut = (unsigned char *)malloc((SHA256_DIGEST_LENGTH)* sizeof(unsigned char));
@@ -51,9 +52,12 @@ gchar* sha256_base16(const char* str, unsigned int length)
     memcpy(_buffer, str, length);
 
     sha256(_buffer, length, hashOut);
+    _result = HexEncode(hashOut, SHA256_DIGEST_LENGTH);
         
     g_free(_buffer);
-    return HexEncode(hashOut, SHA256_DIGEST_LENGTH);
+    g_free(hashOut);
+
+    return _result;
 }
 
     
@@ -316,7 +320,7 @@ gchar *string_to_sign(
     gchar* datestr = ISO8601_date(request_date);
     gchar* result = g_strconcat(
                             algorithm, ENDL, 
-                            ISO8601_date(request_date), ENDL,
+                            datestr, ENDL,
                             credential_scope, ENDL, 
                             hashed_canonical_request,
                             (gchar *)0);
@@ -434,6 +438,20 @@ gchar *calculate_signature(
 
 
 void free_kvp_array(KeyValuePair** array, unsigned int num_entries)
+{
+    unsigned int _index;
+    for(_index = 0; _index < num_entries; _index++)
+    {
+        g_free(array[_index]->key);
+        g_free(array[_index]->value);
+        g_free(array[_index]);
+    }
+    g_free(array);
+
+    array = NULL;
+}
+
+void free_str_array(gchar** array, unsigned int num_entries)
 {
     unsigned int _index;
     for(_index = 0; _index < num_entries; _index++)

@@ -53,5 +53,6 @@ gchar *calculate_signature(
                             const gchar* string_to_sign) ;
    
 void free_kvp_array(KeyValuePair** array, unsigned int num_entries);
+void free_str_array(gchar** array, unsigned int num_entries);
 
 #endif

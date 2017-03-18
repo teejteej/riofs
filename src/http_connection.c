@@ -332,6 +332,7 @@ static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
                                 _signature);
 
 
+    g_free(_date_str);
     g_free(_canonical_uri);
     g_free(_canonical_query);
     g_free(_canonical_request);
@@ -342,6 +343,7 @@ static gchar *http_connection_get_auth_string_v4 (HttpConnection *con,
     g_free(_map_signed_headers);
 
     free_kvp_array(_canonical_headers, _num_entries);
+    free_str_array(_headers, _num_entries);
 
     evhttp_uri_free(_uri);
 
@@ -934,14 +936,18 @@ gboolean http_connection_make_request (HttpConnection *con,
 
     // introduced _request_headers as a temporary structure so that AWSV4 can manipulate headers...
     for (l = g_list_first (data->l_output_headers); l; l = g_list_next (l)) {
-        _request_headers = g_list_prepend(_request_headers, l->data);
+        _header = g_malloc(sizeof(HttpConnectionHeader));
+        _header->key = g_strdup(((HttpConnectionHeader*)l->data)->key);
+        _header->value = g_strdup(((HttpConnectionHeader*)l->data)->value);
+
+        _request_headers = g_list_prepend(_request_headers, _header);
     }
 
     if(contains_header(_request_headers,"Host") == false)
     {
         _header = g_malloc(sizeof(HttpConnectionHeader));
         _header->key = g_strdup("Host");
-        _header->value = conf_get_string (application_get_conf (con->app), "s3.host");
+        _header->value = g_strdup(conf_get_string (application_get_conf (con->app), "s3.host"));
         _request_headers = g_list_prepend(_request_headers, _header);
     }
 
@@ -1027,14 +1033,21 @@ gboolean http_connection_make_request (HttpConnection *con,
         auth_key = g_malloc(sizeof(gchar)*256);
         snprintf (auth_key, 255, "AWS %s:%s", conf_get_string (application_get_conf (con->app), "s3.access_key_id"), auth_str);
     }
-    g_free (auth_str);
 
     evhttp_add_header (req->output_headers, "Authorization", auth_key);
+
+    g_free (auth_str);
+    g_free(auth_key);
 
     for (l = g_list_first (_request_headers); l; l = g_list_next (l)) {
         _header = (HttpConnectionHeader *) l->data;
         evhttp_add_header (req->output_headers, _header->key, _header->value);
+
+        g_free(_header->key);
+        g_free(_header->value);
+        g_free(_header);
     }
+    g_list_free(g_list_first (_request_headers));
 
     gettimeofday (&data->start_tv, NULL);
     con->cur_time_start = time (NULL);

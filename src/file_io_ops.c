@@ -85,6 +85,7 @@ void fileio_destroy (FileIO *fop)
         FileIOPart *part = (FileIOPart *) l->data;
         g_free (part->md5str);
         g_free (part->md5b);
+        g_free (part->sha256);
         g_free (part);
     }
     g_list_free(fop->l_parts);
