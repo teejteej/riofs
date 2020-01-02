@@ -17,6 +17,97 @@
  */
 #include "utils.h"
 
+int strcicmp(char const *a, char const *b)
+{
+    if(a==NULL && b != NULL) return 1;
+    if(a!=NULL && b == NULL) return -1;
+    if(a==NULL && b == NULL) return 0;
+
+    for (;; a++, b++) {
+        int d = tolower(*a) - tolower(*b);
+        if (d != 0 || !*a)
+            return d;
+    }
+}
+
+gchar** str_split(const gchar* a_str, const gchar* a_delim, unsigned int* num_entries, bool stoponfirst)
+{
+    gchar* _str = g_strdup(a_str);
+    char* tmp        = _str;
+
+    char** result    = 0;
+    size_t count     = 0;
+    char* last_comma = 0;
+    const char* delim;
+    delim = a_delim;
+
+    *num_entries = 0;
+
+    if(a_str == NULL)
+    {
+        return NULL;
+    }
+
+    if(strcmp(a_str, "") ==0)
+    {
+        result = g_malloc(sizeof(gchar*));
+        result[0] = g_strdup("");
+
+        (*num_entries) = 1;
+        return result;
+    }
+
+    /* Count how many elements will be extracted. */
+    while (*tmp)
+    {
+        if (*a_delim == *tmp)
+        {
+            count++;
+            last_comma = tmp;
+            if(stoponfirst == true)
+            {
+                break;
+            }
+        }
+        tmp++;
+    }
+
+    /* Add space for trailing token. */
+    count += last_comma < (_str + strlen(_str) - 1);
+
+
+    /* Add space for terminating null string so caller
+       knows where the list of returned strings ends. */
+    count++;
+
+    result = g_malloc(sizeof(gchar*) * count);    
+    if (result)
+    {
+        size_t idx  = 0;
+        char* token = strtok(_str, delim);
+
+        while (token)
+        {
+            *(result + idx++) = g_strdup(token);
+            if(stoponfirst == true)
+            {
+                (*num_entries)++;
+                (*num_entries)++;
+                *(result + idx++) = g_strdup(strtok(0, "\0"));
+                break;
+            }
+            else{            
+                token = strtok(0, delim);
+                (*num_entries)++;
+            }
+        }
+        *(result + idx) = 0;
+    }
+
+    g_free(_str);    
+    return result;
+}
+
 gchar *get_random_string (size_t len, gboolean readable)
 {
     gchar *out;
@@ -275,11 +366,46 @@ static char *url_escape_1 (const char *s, unsigned char mask)
     return newstr;
 }
 
+gchar* HexEncode(unsigned char* array, unsigned int arraylen)
+{
+    unsigned int i = 0;
+
+    gchar* _result;
+    char* pin;
+    gchar* pout;
+    const char* hex = "0123456789abcdef";
+
+    if(array == NULL){
+        return NULL;
+    }
+
+    _result = g_malloc0(sizeof(gchar)*(2*arraylen+1));
+    pin = array;
+
+    pout = _result;
+    for(i=0; i < arraylen; i++)
+    {
+        *pout++ = hex[(*pin>>4)&0xF];
+        *pout++ = hex[(*pin)&0xF];
+        (*pin++);
+    }
+    //*pout++ = hex[(*pin>>4)&0xF];
+    //*pout++ = hex[(*pin)&0xF];
+    *pout = 0;  
+
+    return _result;  
+}
+
 /* URL-escape the unsafe characters (see urlchr_table) in a given
    string, returning a freshly allocated string.  */
 char *url_escape (const char *s)
 {
     return url_escape_1 (s, urlchr_unsafe);
+}
+
+char *url_escape_strict (const char *s)
+{
+    return url_escape_1 (s, urlchr_reserved);
 }
 
 // copy-paste from glib sources

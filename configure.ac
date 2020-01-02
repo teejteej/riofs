@@ -37,7 +37,7 @@ AC_TYPE_OFF_T
 AC_TYPE_SIZE_T
 AC_TYPE_PID_T
 
-PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libxml-2.0 >= 2.6 libcrypto >= 0.9])
+PKG_CHECK_MODULES([DEPS], [glib-2.0 >= 2.22 fuse >= 2.7.3 libxml-2.0 >= 2.6 libcrypto >= 0.9 ])
 
 AC_ARG_WITH(libevent,
     AS_HELP_STRING(--with-libevent=PATH, base of libevent2 installation),
@@ -85,6 +85,7 @@ if test "x$enable_openssl" = "xyes" ; then
         AC_DEFINE([SSL_ENABLED], [1], [Define to 1 if SSL support is enabled])
     fi
 fi
+
 
 #AC_MSG_CHECKING(for libmagic)
 libmagic=false

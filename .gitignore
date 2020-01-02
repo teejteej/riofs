@@ -55,3 +55,4 @@ xcuserdata/
 INSTALL
 .pc/
 patches/
+tests/awsv4_test

@@ -20,6 +20,13 @@
 
 #include "global.h"
 
+gchar** str_split(const gchar* a_str, const gchar* a_delim, unsigned int* num_entries, bool stoponfirst);
+int strcicmp(char const *a, char const *b);
+
+gchar* HexEncode(unsigned char* array, unsigned int arraylen);
+
+int strarraycompare(const void* a, const void* b);
+
 gchar *get_random_string (size_t len, gboolean readable);
 gboolean get_md5_sum (const gchar *buf, size_t len, gchar **md5str, gchar **md5b);
 gchar *get_base64 (const gchar *buf, size_t len);
@@ -39,6 +46,7 @@ gchar *str_remove_quotes (gchar *str);
 /* URL-escape the unsafe characters in a given
    string, returning a freshly allocated string.  */
 char *url_escape (const char *s);
+char *url_escape_strict (const char *s);
 
 // this function was added to glib since v2.32
 void _queue_free_full (GQueue *queue, GDestroyNotify  free_func);

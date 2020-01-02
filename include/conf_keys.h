@@ -31,6 +31,7 @@ const gchar *conf_keys_str[] = {
     "pool.max_requests_per_pool",
     "s3.endpoint",
     "s3.keys_per_request",
+//    "s3.use_awsv2", -- dont want to make it mandatory...
     "s3.part_size",
     "s3.check_empty_files",
     "s3.storage_type",

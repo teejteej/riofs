@@ -483,8 +483,6 @@ static gint application_finish_initialization_and_run (Application *app)
 }
 /*}}}*/
 
-/*{{{ application_on_bucket_acl_cb */
-//  replies on bucket ACL
 static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len)
 {
@@ -501,6 +499,58 @@ static void application_on_bucket_acl_cb (gpointer ctx, gboolean success,
     application_finish_initialization_and_run (app);
 }
 /*}}}*/
+
+/*{{{ application_on_bucket_location_cb */
+//  replies on bucket location
+static void application_on_bucket_location_cb (gpointer ctx, gboolean success,
+    G_GNUC_UNUSED const gchar *buf, G_GNUC_UNUSED size_t buf_len)
+{
+    xmlDocPtr doc;
+    xmlXPathContextPtr xmlctx;
+    xmlXPathObjectPtr msg_xp;
+    xmlNodePtr _node;
+    gchar *msg;
+    Application *app = (Application *)ctx;
+    
+
+    if (!success || !buf || !buf_len) {
+        LOG_err (APP_LOG, "Failed to get bucket LOCATION! Most likely you provided wrong AWS keys or bucket name !");
+        application_exit (app);
+        return;
+    }
+
+    msg = g_malloc0(sizeof(char)*(buf_len + 1));
+    memcpy(msg, buf, buf_len);
+
+    doc = xmlReadMemory (msg, buf_len, "", NULL, 0);
+    if (!doc)
+    {
+        LOG_err (APP_LOG, "Failed to read bucket LOCATION!");
+        return NULL;
+    }
+
+    xmlctx = xmlXPathNewContext (doc);
+	for(_node = doc->children; _node != NULL; _node = _node->next)
+	{
+        if(strcicmp(_node->name, "LocationConstraint") == 0)
+		{
+            if(_node->children != NULL && _node->children->content !=NULL)
+            {
+                conf_set_string (app->conf, "s3.region", g_strdup(_node->children->content));
+            }
+            break;
+        }
+	}    
+
+
+    xmlXPathFreeContext (xmlctx);
+    xmlFreeDoc (doc);
+
+    g_free(msg);
+
+    bucket_client_get (app->service_con, "/?acl", application_on_bucket_acl_cb, app);
+}
+
 
 /*{{{ application_destroy */
 static void application_destroy (Application *app)
@@ -601,6 +651,7 @@ int main (int argc, char *argv[])
     guint32 part_size = 0;
     gboolean disable_syslog = FALSE;
     gboolean disable_stats = FALSE;
+    gboolean use_awsv2 = FALSE;
     gboolean force_head_requests = FALSE;
     gint uid = -1;
     gint gid = -1;
@@ -628,6 +679,7 @@ int main (int argc, char *argv[])
         { "fuse-options", 'o', 0, G_OPTION_ARG_STRING_ARRAY, &s_fuse_opts, "Fuse options.", "\"opt[,opt...]\"" },
         { "disable-syslog", 0, 0, G_OPTION_ARG_NONE, &disable_syslog, "Flag. Disable logging to syslog.", NULL },
         { "disable-stats", 0, 0, G_OPTION_ARG_NONE, &disable_stats, "Flag. Disable Statistics HTTP interface.", NULL },
+        { "use-awsv2", 0, 0, G_OPTION_ARG_NONE, &use_awsv2, "Use old AWS Authentication V2.", NULL },
         { "part-size", 0, 0, G_OPTION_ARG_INT, &part_size, "Set file part size (in bytes).", NULL },
         { "log-file", 'l', 0, G_OPTION_ARG_STRING_ARRAY, &s_log_file, "File to write output.", NULL },
         { "force-head-requests", 0, 0, G_OPTION_ARG_NONE, &force_head_requests, "Flag. Send HEAD request for each file.", NULL },
@@ -695,8 +747,11 @@ int main (int argc, char *argv[])
         g_fprintf (stdout, "RioFS File System v%s\n", VERSION);
         g_fprintf (stdout, "Copyright (C) 2012-2014 Paul Ionkin <paul.ionkin@gmail.com>\n");
         g_fprintf (stdout, "Copyright (C) 2012-2014 Skoobe GmbH. All rights reserved.\n");
+        g_fprintf (stdout, "\n");
+        g_fprintf (stdout, "AWS V4 Integration: Andreas Nickel <andreas(AT)familie-nickel.ch\n");
+        g_fprintf (stdout, "\n");
         g_fprintf (stdout, "Libraries:\n");
-        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d",
+        g_fprintf (stdout, " GLib: %d.%d.%d   libevent: %s  fuse: %d.%d ",
                 GLIB_MAJOR_VERSION, GLIB_MINOR_VERSION, GLIB_MICRO_VERSION,
                 LIBEVENT_VERSION,
                 FUSE_MAJOR_VERSION, FUSE_MINOR_VERSION
@@ -827,10 +882,19 @@ int main (int argc, char *argv[])
         return -1;
     }
 
+    // set default region...
+    conf_set_string (app->conf, "s3.region", "us-east-1");
 
     // foreground is set
     if (foreground)
         conf_set_boolean (app->conf, "app.foreground", foreground);
+
+    if (use_awsv2){
+        conf_set_boolean (app->conf, "s3.use_awsv4", !use_awsv2);
+    }
+    else{
+        conf_set_boolean (app->conf, "s3.use_awsv4", TRUE);
+    }
 
     if (part_size)
         conf_set_uint (app->conf, "s3.part_size", part_size);
@@ -921,7 +985,8 @@ int main (int argc, char *argv[])
         application_destroy (app);
         return -1;
     }
-    bucket_client_get (app->service_con, "/?acl", application_on_bucket_acl_cb, app);
+    bucket_client_get (app->service_con, "/?location", application_on_bucket_location_cb, app);
+    
 
     // start the loop
     event_base_dispatch (app->evbase);
